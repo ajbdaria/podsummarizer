@@ -1,7 +1,19 @@
 import { useState, useCallback, useRef } from "react";
-import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs";
-
 const css = String.raw;
+
+// Dynamically load SheetJS from cdnjs
+function loadXLSX() {
+  return new Promise((resolve, reject) => {
+    if (window.XLSX) { resolve(window.XLSX); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+// Kick off load immediately
+const XLSXPromise = loadXLSX();
 
 const G = css`
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -195,19 +207,16 @@ const G = css`
   .date-tag.hot { background: #ECFDF5 !important; color: #065F46 !important; border-color: #6EE7B7 !important; position: relative; }
   .date-tag.hot::before { content: '🔥'; font-size: 9px; }
 
-  /* Reward badge */
   .reward-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 99px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; }
   .reward-badge.split { background: #FFFBEB; color: #92400E; border-color: #FDE68A; }
   .reward-badge svg { width: 12px; height: 12px; }
 
-  /* Reward breakdown tooltip area */
   .reward-breakdown { font-size: 10px; color: var(--text3); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
   .reward-breakdown .hot-day { color: #059669; font-weight: 700; }
   .reward-breakdown .solo-day { color: #2563EB; }
 
   .tr-total td { background: var(--bg) !important; font-weight: 700; font-size: 12px; letter-spacing: .02em; padding: 11px 16px; }
 
-  /* Rewards summary section */
   .rewards-section { margin-bottom: 28px; }
   .rewards-banner {
     background: linear-gradient(135deg, #064E3B 0%, #065F46 60%, #047857 100%);
@@ -240,6 +249,79 @@ const G = css`
   .how-card-desc { font-size: 11.5px; color: var(--text2); line-height: 1.6; }
   .col-detect { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px 20px; font-size: 12px; color: var(--text2); line-height: 2; }
   .col-kw { display: inline-block; background: var(--surface); border: 1px solid var(--border2); border-radius: 4px; padding: 0 6px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text); font-weight: 600; margin: 1px 2px; }
+
+  /* ─── MANUAL ENTRY MODAL ─── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+  .modal-box { background: var(--surface); border-radius: 16px; width: 100%; max-width: 980px; max-height: 94vh; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(15,23,42,.18), 0 4px 16px rgba(15,23,42,.08); overflow: hidden; }
+
+  .modal-head { padding: 20px 28px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; background: linear-gradient(135deg, #F8FAFF 0%, #fff 100%); flex-shrink: 0; }
+  .modal-head-left { display: flex; align-items: center; gap: 14px; }
+  .modal-head-icon { width: 46px; height: 46px; background: linear-gradient(135deg, var(--purple) 0%, #A78BFA 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 12px rgba(124,58,237,.3); flex-shrink: 0; }
+  .modal-head-title { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -.02em; }
+  .modal-head-sub { font-size: 11px; color: var(--text3); margin-top: 3px; font-weight: 500; }
+  .modal-close { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text3); font-size: 16px; line-height: 1; transition: all .15s; flex-shrink: 0; margin-top: 4px; }
+  .modal-close:hover { background: var(--red-lt); border-color: #FECACA; color: var(--red); }
+
+  .modal-body { flex: 1; overflow-y: auto; padding: 20px 28px; display: flex; flex-direction: column; gap: 16px; }
+  .modal-foot { padding: 14px 28px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; background: var(--bg); flex-shrink: 0; align-items: center; }
+
+  /* Summary section */
+  .summary-row { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+  .field-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; display: block; }
+  .field-input { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-family: 'Sora', sans-serif; font-size: 13px; color: var(--text); background: var(--surface); transition: border-color .15s, box-shadow .15s; outline: none; }
+  .field-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
+  .field-input::placeholder { color: var(--text3); }
+
+  /* Branches area */
+  .branches-area { display: grid; grid-template-columns: 210px 1fr; gap: 16px; }
+  .branch-sidebar { display: flex; flex-direction: column; gap: 0; }
+  .branch-sidebar-head { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+  .branch-add-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .branch-add-row input { flex: 1; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-family: 'Sora', sans-serif; font-size: 12px; color: var(--text); background: var(--surface); outline: none; min-width: 0; }
+  .branch-add-row input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
+  .btn-add-branch { padding: 8px 12px; background: var(--blue); color: #fff; border: none; border-radius: var(--radius-sm); font-family: 'Sora', sans-serif; font-weight: 700; font-size: 18px; line-height: 1; cursor: pointer; transition: background .15s; flex-shrink: 0; }
+  .btn-add-branch:hover { background: #1d4ed8; }
+  .branch-list { display: flex; flex-direction: column; gap: 4px; flex: 1; overflow-y: auto; max-height: 380px; }
+  .branch-list-item { padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: 500; color: var(--text); background: var(--surface); }
+  .branch-list-item:hover { border-color: var(--blue-mid); background: var(--blue-lt); color: var(--blue); }
+  .branch-list-item.active { border-color: var(--blue); background: var(--blue-lt); color: var(--blue); font-weight: 700; }
+  .branch-list-item .branch-item-meta { font-size: 9px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+  .branch-list-item.active .branch-item-meta { color: #93C5FD; }
+  .branch-list-item .del-branch { opacity: 0; font-size: 12px; line-height: 1; padding: 2px 4px; border-radius: 3px; background: none; border: none; cursor: pointer; color: var(--red); transition: opacity .15s, background .15s; }
+  .branch-list-item:hover .del-branch { opacity: 1; }
+  .branch-list-item .del-branch:hover { background: var(--red-lt); }
+
+  /* Riders panel */
+  .riders-panel { background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 0; display: flex; flex-direction: column; gap: 0; overflow: hidden; }
+
+  .branch-reward-bar { background: linear-gradient(135deg, var(--green-lt) 0%, #D1FAE5 100%); border-top: 1px solid #A7F3D0; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .branch-reward-label { font-size: 11px; font-weight: 600; color: var(--green); }
+  .branch-reward-amount { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 800; color: var(--green); }
+
+  .grand-total-bar { background: linear-gradient(135deg, #064E3B 0%, #065F46 100%); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .grand-total-label { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.8); }
+  .grand-total-amount { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 800; color: #fff; }
+
+  .modal-btn { padding: 10px 22px; border: none; border-radius: var(--radius-sm); font-family: 'Sora', sans-serif; font-weight: 700; font-size: 12px; cursor: pointer; transition: all .15s; letter-spacing: .01em; }
+  .modal-btn-secondary { background: var(--bg); color: var(--text2); border: 1px solid var(--border2); }
+  .modal-btn-secondary:hover { background: var(--surface); color: var(--text); }
+  .modal-btn-primary { background: linear-gradient(135deg, var(--purple) 0%, #6D28D9 100%); color: #fff; box-shadow: 0 2px 10px rgba(124,58,237,.3); }
+  .modal-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(124,58,237,.45); }
+  .modal-btn-export { background: linear-gradient(135deg, var(--blue) 0%, var(--indigo) 100%); color: #fff; box-shadow: 0 2px 10px rgba(37,99,235,.3); display: flex; align-items: center; gap: 8px; }
+  .modal-btn-export:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(37,99,235,.45); }
+  .modal-btn-export svg { width: 13px; height: 13px; }
+
+  .validation-msg { font-size: 11px; color: var(--red); background: var(--red-lt); border: 1px solid #FECACA; border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 6px; }
+  .validation-msg svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* ── NEW: hit type selector pills ── */
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .hit-type-panel { animation: slideIn .18s ease; }
+  @keyframes riderHighlight { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,.4); } 70% { box-shadow: 0 0 0 6px rgba(37,99,235,0); } 100% { box-shadow: none; } }
+  .rider-row-clickable { cursor: pointer; }
+  .rider-row-clickable:hover td { background: #EFF6FF !important; }
+  .rider-row-active td { background: #DBEAFE !important; }
+  .rider-row-active { animation: riderHighlight .4s ease; }
 `;
 
 const PALETTE = [
@@ -340,15 +422,7 @@ function parseRate(val) {
 }
 
 // ─── REWARDS COMPUTATION ──────────────────────────────────────────────────────
-// Rules:
-//  • Count how many riders hit 100% in a branch on a given day.
-//  • < 3 riders that day  → each gets ₱100
-//  • ≥ 3 riders that day  → pool = ₱300 ÷ number of riders that hit 100% that day (each rider gets equal share)
-//
-// Returns { riderRewards: Map<riderName, totalReward>, hotDates: Set<"branch|||date">, branchTotals: Map<branch, total>, grandTotal }
 function computeRewards(branches) {
-  // Step 1: build per-branch-per-date rider list
-  // branchDateMap[branch][date] = [riderName, ...]
   const branchDateMap = {};
   for (const [branch, riders] of Object.entries(branches)) {
     branchDateMap[branch] = {};
@@ -360,10 +434,8 @@ function computeRewards(branches) {
     }
   }
 
-  // Step 2: compute per-rider reward and collect hot dates
-  // riderRewardMap[branch][riderName] = { total, breakdown: [{date, amount, isHot}] }
   const riderRewardMap = {};
-  const hotDateSet = new Set(); // "branch|||date"
+  const hotDateSet = new Set();
   const branchTotals = {};
   let grandTotal = 0;
 
@@ -375,13 +447,9 @@ function computeRewards(branches) {
       const count = riderNames.length;
       const isHot = count >= 3;
       const rewardEach = isHot ? (300 / count) : 100;
-
       if (isHot) hotDateSet.add(`${branch}|||${date}`);
-
       for (const riderName of riderNames) {
-        if (!riderRewardMap[branch][riderName]) {
-          riderRewardMap[branch][riderName] = { total: 0, breakdown: [] };
-        }
+        if (!riderRewardMap[branch][riderName]) riderRewardMap[branch][riderName] = { total: 0, breakdown: [] };
         riderRewardMap[branch][riderName].total += rewardEach;
         riderRewardMap[branch][riderName].breakdown.push({ date, amount: rewardEach, isHot, ridersOnDate: count });
         branchTotals[branch] += rewardEach;
@@ -394,7 +462,8 @@ function computeRewards(branches) {
 }
 
 // ─── PROCESS SHEETS ───────────────────────────────────────────────────────────
-function processSheets(workbook) {
+async function processSheets(workbook) {
+  const XLSX = await XLSXPromise;
   const allData = {};
   const warnings = [];
   const SKIP_RIDERS   = new Set(["rider","name","courier","driver","agent","employee","staff","personnel",""]);
@@ -471,13 +540,30 @@ function processSheets(workbook) {
   return { branches, warnings, mergeEvents: allMergeEvents };
 }
 
+// ─── MANUAL → BRANCHES FORMAT ─────────────────────────────────────────────────
+function manualToBranches(manualBranches) {
+  const branches = {};
+  for (const [branchName, riders] of Object.entries(manualBranches)) {
+    if (!riders.length) continue;
+    branches[branchName] = riders.map(r => ({
+      rider: r.name,
+      dates: r.hits.map(h => h.dateKey),
+      aliases: [],
+      
+    }));
+  }
+  return branches;
+}
+
 // ─── EXPORT ───────────────────────────────────────────────────────────────────
-function exportXLSX(branches, sourceFileName) {
+async function exportXLSX(branches, sourceFileName, summaryDate) {
+  const XLSX = await XLSXPromise;
   const wb = XLSX.utils.book_new();
   const allRiders = Object.values(branches).flat();
   const totalHits = allRiders.reduce((s,r) => s + r.dates.length, 0);
   const today = new Date();
-  const dateStr = today.toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" });
+  const dateStr = summaryDate ? new Date(summaryDate).toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" }) : today.toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" });
+  const generatedStr = today.toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" });
   const { riderRewardMap, hotDateSet, branchTotals, grandTotal } = computeRewards(branches);
 
   const sc = (ws, addr, v, s) => { ws[addr] = { ...(typeof v === "object" && v !== null && "v" in v ? v : { v, t: typeof v === "number" ? "n" : "s" }), s }; };
@@ -498,7 +584,7 @@ function exportXLSX(branches, sourceFileName) {
   const ws = {};
   const merges = [];
   let r = 0;
-  const COL_COUNT = 6; // added Reward column
+  const COL_COUNT = 6;
 
   const bannerRow = (text, bg, fg, sz, height) => {
     sc(ws, `A${r+1}`, text, { font:{name:"Arial",bold:true,sz:sz||12,color:{rgb:fg||"FFFFFF"}}, fill:{patternType:"solid",fgColor:{rgb:bg||"1E3A5F"}}, alignment:{horizontal:"center",vertical:"center"} });
@@ -517,11 +603,10 @@ function exportXLSX(branches, sourceFileName) {
 
   bannerRow("","1E3A5F","FFFFFF",12,12);
   bannerRow("📦  POD RATE ACHIEVEMENT REPORT  —  100% PERFORMERS","1E3A5F","FFFFFF",14,34);
-  bannerRow(`Generated: ${dateStr}   ·   Branches: ${Object.keys(branches).length}   ·   Riders: ${allRiders.length}   ·   Hits: ${totalHits}   ·   Total Rewards: ₱${grandTotal.toLocaleString("en",{minimumFractionDigits:2})}`, "2C4A6E","BFD4F0",9,18);
+  bannerRow(`Report Period: ${dateStr}   ·   Generated: ${generatedStr}   ·   Branches: ${Object.keys(branches).length}   ·   Riders: ${allRiders.length}   ·   Hits: ${totalHits}   ·   Total Rewards: ₱${grandTotal.toLocaleString("en",{minimumFractionDigits:2})}`, "2C4A6E","BFD4F0",9,18);
   bannerRow("","1E3A5F","FFFFFF",12,8);
   emptyRow("F8FAFC");
 
-  // Summary
   bannerRow("OVERALL SUMMARY","0F172A","94A3B8",9,20);
   const sumHdrStyle = headerStyle("334155","E2E8F0");
   ["Branch","Riders at 100%","Total Hits","Branch Rewards (₱)","Top Performer","Top Hits"].forEach((h,i) => sc(ws,XLSX.utils.encode_cell({r,c:i}),h,sumHdrStyle));
@@ -551,7 +636,6 @@ function exportXLSX(branches, sourceFileName) {
   emptyRow("F8FAFC");
   emptyRow("F8FAFC");
 
-  // Per-branch detail
   Object.entries(branches).forEach(([branch,riders],bi) => {
     const pal = BRANCH_COLORS[bi%BRANCH_COLORS.length];
     const bHits = riders.reduce((s,rr)=>s+rr.dates.length,0);
@@ -564,7 +648,7 @@ function exportXLSX(branches, sourceFileName) {
     ws[`!rows`][r]={hpt:24};
     r++;
 
-    ["#","Rider Name","Times Hit 100%","Dates Achieved (🔥=3+ riders that day)","Total Reward (₱)","Reward Breakdown"].forEach((h,i) => {
+    ["#","Rider Name","Times Hit 100%","Dates Achieved","Total Reward (₱)","Reward Breakdown"].forEach((h,i) => {
       sc(ws,XLSX.utils.encode_cell({r,c:i}),h,headerStyle(pal.header,pal.headerFg));
     });
     ws[`!rows`][r]={hpt:18};
@@ -594,10 +678,9 @@ function exportXLSX(branches, sourceFileName) {
     emptyRow("F8FAFC");
   });
 
-  // Rewards legend
   emptyRow("F8FAFC");
   bannerRow("REWARD RULES: < 3 riders/day per branch = ₱100 each  ·  ≥ 3 riders/day per branch = ₱300 ÷ riders that day  ·  🔥 = hot day (3+ riders)","F1F5F9","64748B",8,18);
-  bannerRow(`Auto-generated · Only 100% POD Rate riders included · ${dateStr}`,"F1F5F9","94A3B8",8,16);
+  bannerRow(`Report: ${sourceFileName}   ·   Period: ${dateStr}   ·   Generated: ${generatedStr}`,"F1F5F9","94A3B8",8,16);
 
   ws["!ref"] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r,c:COL_COUNT-1}});
   ws["!cols"] = [{wch:5},{wch:30},{wch:16},{wch:55},{wch:18},{wch:50}];
@@ -619,9 +702,679 @@ const IconBranch = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 const IconRiders = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
 const IconTrophy = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 2 8 8 12 11 16 8 16 2"/><path d="M8 2H4v6c0 3.31 2.69 6 6 6h0v4"/><path d="M16 2h4v6c0 3.31-2.69 6-6 6h0v4"/><rect x="8" y="20" width="8" height="2" rx="1"/></svg>);
 const IconPeso = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="10" x2="13" y2="10"/><line x1="3" y1="14" x2="13" y2="14"/><path d="M7 20V4h5a5 5 0 0 1 0 10H7"/></svg>);
+const IconEdit = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>);
 
 const HISTORY_KEY = "pod-tracker-history";
 const MAX_HISTORY = 30;
+
+function calcManualRiderReward(hits) {
+  return hits.reduce((sum, h) => sum + (h.type === "hot" ? (300 / h.ridersOnDay) : 100), 0);
+}
+function calcManualBranchReward(riders) {
+  return riders.reduce((s, r) => s + calcManualRiderReward(r.hits), 0);
+}
+function fmtPeso(n) {
+  return n % 1 === 0 ? n.toLocaleString("en") : n.toFixed(2);
+}
+
+// ─── MANUAL ENTRY MODAL ────────────────────────────────────────────────────────
+function ManualEntryModal({ onClose, onSubmit, modalState, setModalState }) {
+  const { label, reportDate, branches, activeBranch, newBranch, riderName, dayLabel, hitStep, hotCount, validErr, selectedRiderIdx } = modalState;
+
+  const set = (key) => (v) => setModalState(s => ({ ...s, [key]: typeof v === "function" ? v(s[key]) : v }));
+  const setLabel        = set("label");
+  const setReportDate   = set("reportDate");
+  const setBranches     = (v) => setModalState(s => ({ ...s, branches: typeof v === "function" ? v(s.branches) : v }));
+  const setActiveBranch = (v) => setModalState(s => ({ ...s, activeBranch: typeof v === "function" ? v(s.activeBranch) : v }));
+  const setNewBranch    = set("newBranch");
+  const setRiderName    = set("riderName");
+  const setDayLabel     = set("dayLabel");
+  const setHitStep      = set("hitStep");
+  const setHotCount     = set("hotCount");
+  const setValidErr     = set("validErr");
+  const setSelectedRiderIdx = set("selectedRiderIdx");
+
+  const hitCounterRef = useRef(0);
+  const poolKeyRef    = useRef({});
+  const riderNameRef  = useRef(null);
+
+  const allRiders   = Object.values(branches).flat();
+  const totalRiders = allRiders.length;
+  const totalHits   = allRiders.reduce((s, r) => s + r.hits.length, 0);
+  const grandTotal  = Object.values(branches).reduce((s, riders) => s + calcManualBranchReward(riders), 0);
+
+  // ── branch ops ──
+  const addBranch = () => {
+    const b = newBranch.trim();
+    if (!b || branches[b]) return;
+    setModalState(s => ({ ...s, branches: { ...s.branches, [b]: [] }, activeBranch: b, newBranch: "", hitStep: "idle", selectedRiderIdx: null }));
+  };
+  const deleteBranch = (b) => {
+    setModalState(s => {
+      const n = { ...s.branches };
+      delete n[b];
+      return { ...s, branches: n, activeBranch: s.activeBranch === b ? null : s.activeBranch, selectedRiderIdx: null };
+    });
+  };
+
+  // ── select rider by clicking their row ──
+  // Clicking a rider row → fills in their name and starts "choosing" step
+  const selectRider = (riderIdx) => {
+    const rider = (branches[activeBranch] || [])[riderIdx];
+    if (!rider) return;
+    setModalState(s => ({
+      ...s,
+      riderName: rider.name,
+      selectedRiderIdx: riderIdx,
+      hitStep: "choosing",
+      dayLabel: ""
+    }));
+    // Focus the day label input after a tick
+    setTimeout(() => riderNameRef.current?.focus(), 50);
+  };
+
+  // ── hit ops ──
+  const addSoloHit = () => {
+    const name = riderName.trim();
+    if (!name || !activeBranch) return;
+    hitCounterRef.current += 1;
+    const lbl = dayLabel.trim() || `Hit ${hitCounterRef.current}`;
+    const dateKey = `${lbl}__solo__${hitCounterRef.current}`;
+    applyHit(name, { type: "solo", ridersOnDay: 1, label: lbl, dateKey });
+    setDayLabel("");
+  };
+
+  const addHotHit = () => {
+    const name = riderName.trim();
+    const n = Math.max(3, Math.min(99, hotCount || 3));
+    if (!name || !activeBranch) return;
+    const lbl = dayLabel.trim() || `Hit ${hitCounterRef.current + 1}`;
+    const poolKey = `${activeBranch}|${lbl}|${n}`;
+    if (!poolKeyRef.current[poolKey]) {
+      hitCounterRef.current += 1;
+      poolKeyRef.current[poolKey] = `${lbl}__hot${n}__${hitCounterRef.current}`;
+    }
+    const dateKey = poolKeyRef.current[poolKey];
+    applyHit(name, { type: "hot", ridersOnDay: n, label: lbl, dateKey });
+    setDayLabel("");
+    setHotCount(3);
+  };
+
+  const applyHit = (name, hit) => {
+    setModalState(s => {
+      const branch = s.activeBranch;
+      const riders = s.branches[branch] || [];
+      const idx = riders.findIndex(r => r.name.toLowerCase() === name.toLowerCase());
+      const updatedRiders = idx !== -1
+        ? riders.map((r, i) => i === idx ? { ...r, hits: [...r.hits, hit] } : r)
+        : [...riders, { name, hits: [hit] }];
+      return {
+        ...s,
+        branches: { ...s.branches, [branch]: updatedRiders },
+        hitStep: "choosing",   // stay in choosing so user can add another hit quickly
+        selectedRiderIdx: idx !== -1 ? idx : updatedRiders.length - 1,
+        dayLabel: ""
+      };
+    });
+  };
+
+  const removeHit = (branch, riderIdx, hitIdx) => {
+    setModalState(s => {
+      const updated = s.branches[branch].map((r, i) => {
+        if (i !== riderIdx) return r;
+        const newHits = r.hits.filter((_, hi) => hi !== hitIdx);
+        return newHits.length ? { ...r, hits: newHits } : null;
+      }).filter(Boolean);
+      return {
+        ...s,
+        branches: { ...s.branches, [branch]: updated },
+        selectedRiderIdx: null,
+        hitStep: "idle",
+        riderName: ""
+      };
+    });
+  };
+
+  const removeRider = (branch, idx) => {
+    setModalState(s => ({
+      ...s,
+      branches: { ...s.branches, [branch]: s.branches[branch].filter((_, i) => i !== idx) },
+      selectedRiderIdx: null,
+      hitStep: "idle",
+      riderName: ""
+    }));
+  };
+
+  const cancelHit = () => {
+    setModalState(s => ({ ...s, hitStep: "idle", hotCount: 3, selectedRiderIdx: null, riderName: "" }));
+  };
+
+  const doneWithRider = () => {
+    setModalState(s => ({ ...s, hitStep: "idle", selectedRiderIdx: null, riderName: "" }));
+  };
+
+  // ── submit ──
+  const handleSubmit = (andExport = false) => {
+    if (!label.trim())                     { setValidErr("Please enter a Summary Label."); return; }
+    if (!Object.keys(branches).length)     { setValidErr("Add at least one branch."); return; }
+    if (!totalRiders)                      { setValidErr("Add at least one rider."); return; }
+    setValidErr("");
+    onSubmit({ label: label.trim(), date: reportDate, branches: manualToBranches(branches), andExport });
+  };
+
+  const activeBranchRiders = activeBranch ? (branches[activeBranch] || []) : [];
+  const branchEst = activeBranch ? calcManualBranchReward(activeBranchRiders) : 0;
+  const isRiderSelected = selectedRiderIdx !== null && selectedRiderIdx >= 0 && selectedRiderIdx < activeBranchRiders.length;
+  const selectedRiderName = isRiderSelected ? activeBranchRiders[selectedRiderIdx]?.name : null;
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-box">
+
+        {/* ── HEADER ── */}
+        <div className="modal-head">
+          <div className="modal-head-left">
+            <div className="modal-head-icon">✍️</div>
+            <div>
+              <div className="modal-head-title">Manual Summary Entry</div>
+              <div className="modal-head-sub">
+                Add branches → riders → click a rider row to add more hits · Solo ₱100 / Hot 🔥 ₱300÷riders
+              </div>
+            </div>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        {/* ── BODY ── */}
+        <div className="modal-body">
+
+          {/* Summary label + date */}
+          <div className="summary-row">
+            <div>
+              <label className="field-label">Summary Label *</label>
+              <input className="field-input" placeholder="e.g. Weekly Report — Jan 2024" value={label} onChange={e => setLabel(e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Report Date</label>
+              <input className="field-input" type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Two-column layout */}
+          <div className="branches-area">
+
+            {/* LEFT — branch list */}
+            <div className="branch-sidebar">
+              <div className="branch-sidebar-head">Branches ({Object.keys(branches).length})</div>
+              <div className="branch-add-row">
+                <input
+                  placeholder="Branch name"
+                  value={newBranch}
+                  onChange={e => setNewBranch(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && addBranch()}
+                />
+                <button className="btn-add-branch" onClick={addBranch} title="Add branch">+</button>
+              </div>
+              <div className="branch-list">
+                {!Object.keys(branches).length && (
+                  <div style={{ padding: "16px 8px", fontSize: 11, color: "var(--text3)", textAlign: "center", lineHeight: 1.6 }}>
+                    No branches yet.<br/>Type a name above and press +
+                  </div>
+                )}
+                {Object.entries(branches).map(([b, riders]) => (
+                  <div
+                    key={b}
+                    className={`branch-list-item${activeBranch === b ? " active" : ""}`}
+                    onClick={() => {
+                      setModalState(s => ({
+                        ...s,
+                        activeBranch: b,
+                        hitStep: "idle",
+                        selectedRiderIdx: null,
+                        riderName: ""
+                      }));
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b}</div>
+                      <div className="branch-item-meta">
+                        {riders.length} rider{riders.length !== 1 ? "s" : ""} · ₱{fmtPeso(calcManualBranchReward(riders))}
+                      </div>
+                    </div>
+                    <button className="del-branch" onClick={e => { e.stopPropagation(); deleteBranch(b); }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* RIGHT — riders panel */}
+            <div className="riders-panel">
+              {!activeBranch ? (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text3)", fontSize: 12, opacity: .7, padding: 32 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{opacity:.4}}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                  <div style={{ textAlign: "center" }}>Select or create a branch<br/>to start adding riders</div>
+                </div>
+              ) : (
+                <>
+                  {/* ─ Branch header bar ─ */}
+                  <div style={{
+                    padding: "12px 16px",
+                    background: "var(--surface)",
+                    borderBottom: "1px solid var(--border)",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    flexShrink: 0
+                  }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)", display: "flex", alignItems: "center", gap: 8 }}>
+                      🏢 {activeBranch}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--text3)", fontFamily: "'JetBrains Mono',monospace" }}>
+                      {activeBranchRiders.length} riders · ₱{fmtPeso(branchEst)}
+                    </div>
+                  </div>
+
+                  {/* ─ Hit input panel (shown when hitStep !== idle) ─ */}
+                  {hitStep !== "idle" && (
+                    <div className="hit-type-panel" style={{
+                      margin: "12px 12px 0",
+                      background: "var(--surface)",
+                      border: "2px solid var(--blue-mid)",
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      flexShrink: 0
+                    }}>
+                      {/* ─ Selected rider banner ─ */}
+                      <div style={{
+                        background: "var(--blue-lt)",
+                        borderBottom: "1px solid var(--blue-mid)",
+                        padding: "10px 14px",
+                        display: "flex", alignItems: "center", justifyContent: "space-between"
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{
+                            width: 28, height: 28, borderRadius: "50%",
+                            background: "var(--blue)", color: "#fff",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 13, fontWeight: 800
+                          }}>
+                            {riderName.charAt(0).toUpperCase() || "?"}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 12, color: "var(--blue)" }}>
+                              {riderName || "New Rider"}
+                            </div>
+                            <div style={{ fontSize: 10, color: "var(--text3)" }}>
+                              {isRiderSelected ? "Adding another hit" : "New rider"} · {activeBranch}
+                            </div>
+                          </div>
+                        </div>
+                        <button onClick={cancelHit} style={{
+                          background: "none", border: "1px solid var(--blue-mid)", borderRadius: 6,
+                          padding: "4px 10px", fontSize: 11, color: "var(--text2)", cursor: "pointer",
+                          fontFamily: "'Sora',sans-serif", fontWeight: 600
+                        }}>✕ Cancel</button>
+                      </div>
+
+                      <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+
+                        {/* Name field (only shown for idle→choosing when no rider selected) */}
+                        {!isRiderSelected && (
+                          <div>
+                            <label className="field-label" style={{ fontSize: 9 }}>Rider Name *</label>
+                            <input
+                              ref={riderNameRef}
+                              className="field-input"
+                              style={{ fontSize: 12, padding: "7px 10px" }}
+                              placeholder="e.g. Juan Dela Cruz"
+                              value={riderName}
+                              onChange={e => setRiderName(e.target.value)}
+                              autoFocus
+                            />
+                          </div>
+                        )}
+
+                        {/* Day label */}
+                        <div>
+                          <label className="field-label" style={{ fontSize: 9 }}>
+                            Day Label <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional — e.g. Jan 5, Week 2)</span>
+                          </label>
+                          <input
+                            ref={isRiderSelected ? riderNameRef : null}
+                            className="field-input"
+                            style={{ fontSize: 12, padding: "7px 10px" }}
+                            placeholder="Leave blank for auto-label"
+                            value={dayLabel}
+                            onChange={e => setDayLabel(e.target.value)}
+                            autoFocus={isRiderSelected}
+                          />
+                        </div>
+
+                        {/* Step: choosing hit type */}
+                        {hitStep === "choosing" && (
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={addSoloHit}
+                              disabled={!riderName.trim()}
+                              style={{
+                                flex: 1, padding: "12px 8px",
+                                background: riderName.trim() ? "var(--blue-lt)" : "var(--bg)",
+                                border: `2px solid ${riderName.trim() ? "var(--blue)" : "var(--border)"}`,
+                                borderRadius: 9, cursor: riderName.trim() ? "pointer" : "not-allowed",
+                                fontFamily: "'Sora',sans-serif", transition: "all .15s",
+                                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                                color: riderName.trim() ? "#1D4ED8" : "var(--text3)"
+                              }}
+                            >
+                              <span style={{ fontSize: 20 }}>💙</span>
+                              <span style={{ fontWeight: 800, fontSize: 12 }}>Solo Day</span>
+                              <span style={{ fontSize: 10, opacity: .75 }}>1–2 riders hit 100%</span>
+                              <span style={{
+                                background: riderName.trim() ? "var(--blue)" : "var(--border2)", color: riderName.trim() ? "#fff" : "var(--text3)",
+                                borderRadius: 99, padding: "3px 14px",
+                                fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 14
+                              }}>₱100</span>
+                            </button>
+
+                            <button
+                              onClick={() => setHitStep("hot-count")}
+                              disabled={!riderName.trim()}
+                              style={{
+                                flex: 1, padding: "12px 8px",
+                                background: riderName.trim() ? "#FFFBEB" : "var(--bg)",
+                                border: `2px solid ${riderName.trim() ? "#D97706" : "var(--border)"}`,
+                                borderRadius: 9, cursor: riderName.trim() ? "pointer" : "not-allowed",
+                                fontFamily: "'Sora',sans-serif", transition: "all .15s",
+                                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                                color: riderName.trim() ? "#92400E" : "var(--text3)"
+                              }}
+                            >
+                              <span style={{ fontSize: 20 }}>🔥</span>
+                              <span style={{ fontWeight: 800, fontSize: 12 }}>Hot Day</span>
+                              <span style={{ fontSize: 10, opacity: .75 }}>3+ riders hit 100%</span>
+                              <span style={{
+                                background: riderName.trim() ? "#D97706" : "var(--border2)", color: riderName.trim() ? "#fff" : "var(--text3)",
+                                borderRadius: 99, padding: "3px 14px",
+                                fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 14
+                              }}>₱300÷n</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Step: hot count */}
+                        {hitStep === "hot-count" && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div style={{ fontSize: 11, color: "var(--text2)", textAlign: "center" }}>
+                              Total riders that hit 100% in <strong>{activeBranch}</strong> that day:
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14 }}>
+                              <button
+                                style={{ width: 36, height: 36, border: "1.5px solid var(--border2)", borderRadius: 7, background: "var(--surface)", cursor: "pointer", fontSize: 18, fontWeight: 700, color: "var(--text2)", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                onClick={() => setHotCount(v => Math.max(3, v - 1))}
+                              >−</button>
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 900, fontSize: 38, color: "var(--text)", lineHeight: 1 }}>{hotCount}</div>
+                                <div style={{ fontSize: 10, color: "var(--text3)" }}>riders</div>
+                              </div>
+                              <button
+                                style={{ width: 36, height: 36, border: "1.5px solid var(--border2)", borderRadius: 7, background: "var(--surface)", cursor: "pointer", fontSize: 18, fontWeight: 700, color: "var(--text2)", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                onClick={() => setHotCount(v => Math.min(99, v + 1))}
+                              >+</button>
+                            </div>
+                            <div style={{
+                              background: "#FFFBEB", border: "1.5px solid #FDE68A", borderRadius: 8,
+                              padding: "10px 12px", textAlign: "center"
+                            }}>
+                              <div style={{ fontSize: 10, color: "#92400E", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>Each rider earns</div>
+                              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 900, fontSize: 28, color: "#D97706" }}>₱{fmtPeso(300 / hotCount)}</div>
+                              <div style={{ fontSize: 10, color: "#B45309" }}>₱300 ÷ {hotCount} riders</div>
+                            </div>
+                            <div style={{ display: "flex", gap: 7 }}>
+                              <button
+                                onClick={() => setHitStep("choosing")}
+                                style={{ flex: 1, padding: "8px", background: "none", border: "1px solid var(--border)", borderRadius: 7, cursor: "pointer", fontSize: 11, color: "var(--text3)", fontFamily: "'Sora',sans-serif" }}
+                              >← Back</button>
+                              <button
+                                className="btn-add-rider"
+                                style={{ flex: 2, padding: "9px", fontSize: 12 }}
+                                onClick={addHotHit}
+                              >✓ Add 🔥 Hit — ₱{fmtPeso(300 / hotCount)}</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Done with this rider shortcut */}
+                      {hitStep === "choosing" && isRiderSelected && (
+                        <div style={{
+                          borderTop: "1px solid var(--border)",
+                          padding: "8px 14px",
+                          display: "flex", alignItems: "center", justifyContent: "space-between"
+                        }}>
+                          <span style={{ fontSize: 10, color: "var(--text3)" }}>
+                            Adding to: <strong style={{ color: "var(--text)" }}>{selectedRiderName}</strong>
+                          </span>
+                          <button onClick={doneWithRider} style={{
+                            background: "var(--green-lt)", border: "1px solid #A7F3D0",
+                            borderRadius: 6, padding: "4px 12px",
+                            fontSize: 11, color: "var(--green)", fontWeight: 700,
+                            cursor: "pointer", fontFamily: "'Sora',sans-serif"
+                          }}>✓ Done with {selectedRiderName?.split(" ")[0]}</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ─ Add new rider trigger (shown when idle) ─ */}
+                  {hitStep === "idle" && (
+                    <div style={{ padding: "10px 12px", flexShrink: 0 }}>
+                      <button
+                        onClick={() => setModalState(s => ({ ...s, hitStep: "choosing", riderName: "", selectedRiderIdx: null, dayLabel: "" }))}
+                        style={{
+                          width: "100%", padding: "9px 14px",
+                          background: "linear-gradient(135deg, var(--blue) 0%, var(--indigo) 100%)",
+                          border: "none", borderRadius: 8,
+                          color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12,
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                          boxShadow: "0 2px 8px rgba(37,99,235,.25)", transition: "all .15s"
+                        }}
+                      >
+                        <span style={{ fontSize: 14 }}>+</span> Add New Rider Hit
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ─ Riders table ─ */}
+                  <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+                    {activeBranchRiders.length === 0 ? (
+                      <div style={{
+                        display: "flex", flexDirection: "column", alignItems: "center",
+                        justifyContent: "center", gap: 8, padding: "28px 16px",
+                        color: "var(--text3)", fontSize: 12, textAlign: "center"
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{opacity:.35}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        No riders yet — click "Add New Rider Hit" above
+                      </div>
+                    ) : (
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "var(--bg)" }}>
+                            <th style={{ padding: "7px 10px 7px 14px", textAlign: "left", fontSize: 9, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--text3)", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>#</th>
+                            <th style={{ padding: "7px 10px", textAlign: "left", fontSize: 9, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--text3)", borderBottom: "1px solid var(--border)" }}>
+                              Rider
+                              <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, marginLeft: 6, color: "var(--blue)", fontSize: 9 }}>← click name to add hit</span>
+                            </th>
+                            <th style={{ padding: "7px 10px", textAlign: "center", fontSize: 9, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--text3)", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>Hits</th>
+                            <th style={{ padding: "7px 10px", textAlign: "left", fontSize: 9, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--text3)", borderBottom: "1px solid var(--border)" }}>Breakdown</th>
+                            <th style={{ padding: "7px 14px 7px 10px", textAlign: "center", fontSize: 9, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--text3)", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>Reward</th>
+                            <th style={{ padding: "7px 10px", borderBottom: "1px solid var(--border)", width: 30 }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeBranchRiders.map((rider, rIdx) => {
+                            const rReward = calcManualRiderReward(rider.hits);
+                            const isThisSelected = selectedRiderIdx === rIdx && hitStep !== "idle";
+                            return (
+                              <tr
+                                key={rIdx}
+                                className={`rider-row-clickable${isThisSelected ? " rider-row-active" : ""}`}
+                                style={{ borderBottom: "1px solid var(--border)" }}
+                              >
+                                <td style={{ padding: "9px 10px 9px 14px", fontSize: 10, color: "var(--text3)", fontFamily: "'JetBrains Mono',monospace" }}>{rIdx + 1}</td>
+
+                                {/* ── Clickable rider name cell ── */}
+                                <td
+                                  style={{ padding: "9px 10px", cursor: "pointer" }}
+                                  onClick={() => selectRider(rIdx)}
+                                  title={`Click to add another hit for ${rider.name}`}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                    <div style={{
+                                      width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                                      background: isThisSelected ? "var(--blue)" : "var(--blue-lt)",
+                                      border: `2px solid ${isThisSelected ? "var(--blue)" : "var(--blue-mid)"}`,
+                                      color: isThisSelected ? "#fff" : "var(--blue)",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      fontSize: 11, fontWeight: 800, transition: "all .15s",
+                                      boxShadow: isThisSelected ? "0 0 0 3px rgba(37,99,235,.2)" : "none"
+                                    }}>
+                                      {rider.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <div style={{
+                                        fontWeight: 700, fontSize: 12,
+                                        color: isThisSelected ? "var(--blue)" : "var(--text)",
+                                        textDecoration: "underline",
+                                        textDecorationStyle: "dotted",
+                                        textDecorationColor: "var(--blue-mid)",
+                                        textUnderlineOffset: 3,
+                                        transition: "color .15s"
+                                      }}>
+                                        {rider.name}
+                                      </div>
+                                      {!isThisSelected && (
+                                        <div style={{ fontSize: 9, color: "var(--text3)", marginTop: 1 }}>
+                                          + add hit
+                                        </div>
+                                      )}
+                                      {isThisSelected && (
+                                        <div style={{ fontSize: 9, color: "var(--blue)", fontWeight: 600, marginTop: 1 }}>
+                                          ✏️ editing…
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td style={{ padding: "9px 10px", textAlign: "center" }}>
+                                  <span style={{
+                                    fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 14,
+                                    color: "var(--blue)",
+                                    background: "var(--blue-lt)", padding: "2px 9px", borderRadius: 99, border: "1px solid var(--blue-mid)"
+                                  }}>
+                                    {rider.hits.length}×
+                                  </span>
+                                </td>
+
+                                <td style={{ padding: "9px 10px" }}>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                    {rider.hits.map((h, hIdx) => {
+                                      const amt = h.type === "hot" ? (300 / h.ridersOnDay) : 100;
+                                      return (
+                                        <span
+                                          key={hIdx}
+                                          title="Click to remove this hit"
+                                          onClick={() => removeHit(activeBranch, rIdx, hIdx)}
+                                          style={{
+                                            display: "inline-flex", alignItems: "center", gap: 3,
+                                            padding: "3px 7px", borderRadius: 99, fontSize: 10, fontWeight: 600,
+                                            cursor: "pointer",
+                                            background: h.type === "hot" ? "#FFFBEB" : "#EFF6FF",
+                                            color:      h.type === "hot" ? "#B45309" : "#1D4ED8",
+                                            border:     `1px solid ${h.type === "hot" ? "#FDE68A" : "#BFDBFE"}`,
+                                            transition: "all .12s"
+                                          }}
+                                          onMouseEnter={e => { e.currentTarget.style.opacity = ".55"; e.currentTarget.style.background = "#FEE2E2"; e.currentTarget.style.borderColor = "#FECACA"; e.currentTarget.style.color = "#B91C1C"; }}
+                                          onMouseLeave={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = h.type === "hot" ? "#FFFBEB" : "#EFF6FF"; e.currentTarget.style.borderColor = h.type === "hot" ? "#FDE68A" : "#BFDBFE"; e.currentTarget.style.color = h.type === "hot" ? "#B45309" : "#1D4ED8"; }}
+                                        >
+                                          {h.type === "hot" ? "🔥" : "💙"} {h.label} · ₱{fmtPeso(amt)}
+                                          <span style={{ opacity: .5, fontSize: 9, marginLeft: 1 }}>✕</span>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+
+                                <td style={{ padding: "9px 14px 9px 10px", textAlign: "center" }}>
+                                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 12, color: "#059669" }}>
+                                    ₱{fmtPeso(rReward)}
+                                  </span>
+                                </td>
+
+                                <td style={{ padding: "9px 10px" }}>
+                                  <button
+                                    onClick={() => removeRider(activeBranch, rIdx)}
+                                    title="Remove rider"
+                                    style={{
+                                      padding: "3px 7px", background: "none", border: "1px solid transparent",
+                                      borderRadius: 5, cursor: "pointer", color: "var(--text3)", fontSize: 12,
+                                      transition: "all .12s"
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = "var(--red-lt)"; e.currentTarget.style.borderColor = "#FECACA"; e.currentTarget.style.color = "var(--red)"; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.color = "var(--text3)"; }}
+                                  >✕</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Branch reward bar */}
+                  {activeBranchRiders.length > 0 && (
+                    <div className="branch-reward-bar">
+                      <span className="branch-reward-label">
+                        💰 {activeBranchRiders.length} rider{activeBranchRiders.length !== 1 ? "s" : ""} · {activeBranchRiders.reduce((s, r) => s + r.hits.length, 0)} hits
+                      </span>
+                      <span className="branch-reward-amount">₱{fmtPeso(branchEst)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Grand total */}
+          {totalRiders > 0 && (
+            <div className="grand-total-bar">
+              <span className="grand-total-label">
+                📊 {Object.keys(branches).length} branch{Object.keys(branches).length !== 1 ? "es" : ""} · {totalRiders} riders · {totalHits} hits
+              </span>
+              <span className="grand-total-amount">₱{fmtPeso(grandTotal)}</span>
+            </div>
+          )}
+
+          {validErr && (
+            <div className="validation-msg">
+              <IconWarn /> {validErr}
+            </div>
+          )}
+        </div>
+
+        {/* ── FOOTER ── */}
+        <div className="modal-foot">
+          <div style={{ fontSize: 10, color: "var(--text3)", flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ background: "#EFF6FF", color: "#2563EB", padding: "3px 10px", borderRadius: 99, fontWeight: 700, fontSize: 11 }}>💙 Solo ≤2 riders → ₱100</span>
+            <span style={{ background: "#FFFBEB", color: "#D97706", padding: "3px 10px", borderRadius: 99, fontWeight: 700, fontSize: 11 }}>🔥 Hot ≥3 riders → ₱300÷n</span>
+          </div>
+          <button className="modal-btn modal-btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="modal-btn modal-btn-primary" onClick={() => handleSubmit(false)}>✓ Create Report</button>
+          <button className="modal-btn modal-btn-export" onClick={() => handleSubmit(true)}><IconDownload /> Create & Export Excel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── RESULTS PANEL ────────────────────────────────────────────────────────────
 function ResultsPanel({ branches, fileName, uploadedAt, isHistory }) {
@@ -639,7 +1392,6 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory }) {
         </div>
       )}
 
-      {/* Stats row */}
       <div className="stat-row">
         {[
           { label:"Branches",        value:Object.keys(branches).length, icon:<IconBranch />, iconBg:"#EFF6FF", iconColor:"#2563EB", numColor:"#2563EB" },
@@ -657,7 +1409,6 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory }) {
         ))}
       </div>
 
-      {/* Rewards banner */}
       <div className="rewards-section">
         <div className="rewards-banner">
           <div className="rewards-banner-left">
@@ -672,8 +1423,6 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory }) {
             <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>Total payout</div>
           </div>
         </div>
-
-        {/* Legend */}
         <div className="rewards-legend">
           <div className="legend-pill" style={{background:"#ECFDF5",color:"#065F46",borderColor:"#6EE7B7"}}>
             <div className="legend-dot" style={{background:"#059669"}} />
@@ -689,7 +1438,6 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory }) {
         </div>
       </div>
 
-      {/* Branch sections */}
       <div className="section-header">
         <div className="section-label">Branch Performance</div>
         <div className="section-count">{Object.keys(branches).length} branches · {allRiders.length} riders</div>
@@ -699,7 +1447,6 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory }) {
         const pal  = PALETTE[bi % PALETTE.length];
         const bHits = riders.reduce((s,r) => s + r.dates.length, 0);
         const branchReward = branchTotals[branch] || 0;
-
         return (
           <div className="branch-block" key={branch}>
             <div className="branch-card">
@@ -741,7 +1488,6 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory }) {
                     {riders.map((rider,ri) => {
                       const rInfo = riderRewardMap[branch]?.[rider.rider] || {total:0,breakdown:[]};
                       const isSplit = rInfo.breakdown.some(b => b.isHot);
-                      const isSolo  = rInfo.breakdown.every(b => !b.isHot);
                       return (
                         <tr key={rider.rider+ri}>
                           <td><span className="row-num">{ri+1}</span></td>
@@ -758,14 +1504,9 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory }) {
                             <div className="date-tags">
                               {rider.dates.map((d,di) => {
                                 const isHotDate = hotDateSet.has(`${branch}|||${d}`);
-                                if (isHotDate) {
-                                  return (
-                                    <span key={di} className="date-tag hot" title="3+ riders in this branch hit 100% on this day — pool reward divided">{d}</span>
-                                  );
-                                }
-                                return (
-                                  <span key={di} className="date-tag" style={{background:pal.date.bg,color:pal.date.color,borderColor:pal.date.border}}>{d}</span>
-                                );
+                                return isHotDate
+                                  ? <span key={di} className="date-tag hot" title="Hot day">{d}</span>
+                                  : <span key={di} className="date-tag" style={{background:pal.date.bg,color:pal.date.color,borderColor:pal.date.border}}>{d}</span>;
                               })}
                             </div>
                           </td>
@@ -809,6 +1550,7 @@ export default function App() {
   const [drag, setDrag]               = useState(false);
   const [fileName, setFileName]       = useState("");
   const [branches, setBranches]       = useState(null);
+  const [summaryDate, setSummaryDate] = useState(null);
   const [warnings, setWarnings]       = useState([]);
   const [mergeEvents, setMergeEvents] = useState([]);
   const [error, setError]             = useState("");
@@ -817,6 +1559,13 @@ export default function App() {
   const [historyView, setHistoryView] = useState(null);
   const [storageReady, setStorageReady] = useState(false);
   const [deletingId, setDeletingId]   = useState(null);
+  const [manualMode, setManualMode]   = useState(false);
+  const [manualModalState, setManualModalState] = useState({
+    label: "", reportDate: new Date().toISOString().split("T")[0],
+    branches: {}, activeBranch: null, newBranch: "",
+    riderName: "", dayLabel: "", hitStep: "idle", hotCount: 3, validErr: "",
+    selectedRiderIdx: null
+  });
   const inputRef = useRef();
 
   useState(() => {
@@ -839,12 +1588,13 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
+        const XLSX = await XLSXPromise;
         const wb = XLSX.read(new Uint8Array(e.target.result), { type:"array", cellDates:true });
         if (!wb.SheetNames?.length) { setError("The file has no sheets."); setLoading(false); return; }
-        const { branches: result, warnings: warns, mergeEvents: merges } = processSheets(wb);
+        const { branches: result, warnings: warns, mergeEvents: merges } = await processSheets(wb);
         setWarnings(warns); setMergeEvents(merges);
         if (!Object.keys(result).length) {
-          setError("No riders with 100% POD Rate found. Check that your file has Branch, Rider/Name, and POD Rate columns.");
+          setError("No riders with 100% POD Rate found.");
         } else {
           setBranches(result);
           const entry = { id:Date.now().toString(), fileName:file.name, uploadedAt:new Date().toISOString(), branches:result };
@@ -875,7 +1625,33 @@ export default function App() {
 
   const clearAllHistory = async () => { await saveHistory([]); setHistoryView(null); };
 
-  const viewData     = historyView || (branches ? { branches, fileName, uploadedAt:new Date().toISOString() } : null);
+  const handleManualSubmit = ({ label, date, branches: result, andExport }) => {
+    const fName = `Manual — ${label}`;
+    setBranches(result);
+    setSummaryDate(date);
+    setFileName(fName);
+    setHistoryView(null);
+    setManualMode(false);
+    setManualModalState({
+      label: "", reportDate: new Date().toISOString().split("T")[0],
+      branches: {}, activeBranch: null, newBranch: "",
+      riderName: "", dayLabel: "", hitStep: "idle", hotCount: 3, validErr: "", selectedRiderIdx: null
+    });
+    setError(""); setWarnings([]); setMergeEvents([]);
+
+    const entry = { id:Date.now().toString(), fileName:fName, uploadedAt:new Date().toISOString(), branches:result, summaryDate:date };
+    setHistory(prev => {
+      const updated = [entry, ...prev].slice(0, MAX_HISTORY);
+      (async()=>{ try { await window.storage.set(HISTORY_KEY, JSON.stringify(updated)); } catch(_){} })();
+      return updated;
+    });
+
+    if (andExport) {
+      setTimeout(() => exportXLSX(result, fName, date), 200);
+    }
+  };
+
+  const viewData     = historyView || (branches ? { branches, fileName, uploadedAt:new Date().toISOString(), summaryDate } : null);
   const isHistoryView = !!historyView;
 
   return (
@@ -903,9 +1679,12 @@ export default function App() {
         .hist-delete { position:absolute; top:8px; right:8px; width:20px; height:20px; background:none; border:none; cursor:pointer; color:var(--text3); border-radius:4px; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s,color .15s,background .15s; font-size:13px; line-height:1; }
         .hist-item:hover .hist-delete { opacity:1; }
         .hist-delete:hover { color:var(--red); background:var(--red-lt); }
-        .hist-export-btn { width:calc(100% - 24px); margin:0 12px 12px; background:none; border:1px solid var(--border2); border-radius:var(--radius-sm); padding:8px 12px; font-size:11px; font-weight:600; color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:7px; transition:all .15s; font-family:'Sora',sans-serif; }
+        .hist-export-btn { width:calc(100% - 24px); margin:8px 12px 0; background:none; border:1px solid var(--border2); border-radius:var(--radius-sm); padding:8px 12px; font-size:11px; font-weight:600; color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:7px; transition:all .15s; font-family:'Sora',sans-serif; }
         .hist-export-btn:hover { border-color:var(--blue); color:var(--blue); background:var(--blue-lt); }
         .hist-export-btn svg { width:13px; height:13px; }
+        .sidebar-manual-btn { width:calc(100% - 24px); margin:10px 12px 12px; background: linear-gradient(135deg, var(--purple) 0%, #6D28D9 100%); border: none; border-radius: var(--radius-sm); padding: 11px 14px; font-size: 11px; font-weight: 700; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all .18s; font-family: 'Sora', sans-serif; box-shadow: 0 2px 10px rgba(124,58,237,.28); letter-spacing:.01em; }
+        .sidebar-manual-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(124,58,237,.4); }
+        .sidebar-manual-btn svg { width: 14px; height: 14px; }
         .content-area { flex:1; overflow-y:auto; }
         `}
       </style>
@@ -920,7 +1699,7 @@ export default function App() {
           <div className="nav-chip"><div className="nav-chip-dot" />100% Achievers</div>
           {viewData && (
             <div className="hdr-right">
-              <button className="export-btn" onClick={() => exportXLSX(viewData.branches, viewData.fileName)}>
+              <button className="export-btn" onClick={() => exportXLSX(viewData.branches, viewData.fileName, viewData.summaryDate)}>
                 <IconDownload />Export Report
               </button>
             </div>
@@ -932,14 +1711,19 @@ export default function App() {
             <div className="sidebar-head">
               <div className="sidebar-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                Upload History
+                History
                 {history.length > 0 && <span className="history-count">{history.length}</span>}
               </div>
               {history.length > 0 && <button className="clear-btn" onClick={clearAllHistory}>Clear all</button>}
             </div>
             <div className="sidebar-list">
               {!storageReady && <div className="sidebar-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Loading…</div>}
-              {storageReady && history.length === 0 && <div className="sidebar-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>No uploads yet.<br />Files you process will appear here so you can re-export them anytime.</div>}
+              {storageReady && history.length === 0 && (
+                <div className="sidebar-empty">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  No records yet.<br />Upload a file or create a manual entry.
+                </div>
+              )}
               {storageReady && history.map(entry => {
                 const riders = Object.values(entry.branches).flat();
                 const hits   = riders.reduce((s,r) => s+r.dates.length, 0);
@@ -951,26 +1735,33 @@ export default function App() {
                 const timeLabel = d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
                 return (
                   <div key={entry.id} className={`hist-item${isActive?" active":""}${isDeleting?" deleting":""}`} onClick={() => setHistoryView(isActive ? null : entry)}>
-                    <div className="hist-item-name" title={entry.fileName}>📄 {entry.fileName}</div>
+                    <div className="hist-item-name" title={entry.fileName}>{entry.fileName.startsWith("Manual") ? "✍️" : "📄"} {entry.fileName}</div>
                     <div className="hist-item-meta">
-                      <span>🏢 {Object.keys(entry.branches).length} branch</span>
-                      <span>👤 {riders.length} riders</span>
-                      <span>🏆 {hits} hits</span>
+                      <span>🏢 {Object.keys(entry.branches).length}</span>
+                      <span>👤 {riders.length}</span>
+                      <span>🏆 {hits}</span>
                     </div>
                     <div className="hist-item-meta">
                       <span>💰 ₱{grandTotal.toLocaleString("en",{minimumFractionDigits:2})}</span>
                       <span style={{opacity:.7}}>{dateLabel} · {timeLabel}</span>
                     </div>
-                    <button className="hist-delete" title="Remove from history" onClick={ev=>{ev.stopPropagation();deleteEntry(entry.id);}}>✕</button>
+                    <button className="hist-delete" title="Remove" onClick={ev=>{ev.stopPropagation();deleteEntry(entry.id);}}>✕</button>
                   </div>
                 );
               })}
             </div>
-            {historyView && (
-              <button className="hist-export-btn" onClick={() => exportXLSX(historyView.branches, historyView.fileName)}>
-                <IconDownload />Export "{historyView.fileName}"
-              </button>
-            )}
+            <div style={{ borderTop: "1px solid var(--border)", background: "var(--bg)" }}>
+              {historyView && (
+                <button className="hist-export-btn" onClick={() => exportXLSX(historyView.branches, historyView.fileName, historyView.summaryDate)}>
+                  <IconDownload />Export "{historyView.fileName.slice(0,22)}{historyView.fileName.length>22?"…":""}"
+                </button>
+              )}
+              {storageReady && (
+                <button className="sidebar-manual-btn" onClick={() => setManualMode(true)}>
+                  <IconEdit />✍️ Manual Entry
+                </button>
+              )}
+            </div>
           </aside>
 
           <div className="content-area">
@@ -1022,7 +1813,8 @@ export default function App() {
                       {icon:"📅",title:"Dates Tracked",desc:"Each date or sheet name where the rider hit 100% is shown as a tag."},
                       {icon:"🔥",title:"Hot Days",desc:"Days where 3+ riders in a branch hit 100% show as green tags — those riders split ₱300."},
                       {icon:"💰",title:"Rewards",desc:"< 3 riders on a day → ₱100 each. ≥ 3 riders → ₱300 pool split equally among them."},
-                      {icon:"🕑",title:"Upload History",desc:"Every file you process is saved. Click any history entry to re-view or re-export it."},
+                      {icon:"✍️",title:"Manual Entry",desc:"Add branches → riders → click any rider's name to add another hit quickly."},
+                      {icon:"🕑",title:"History",desc:"Every file or manual entry you create is saved. Click any history item to re-view or re-export."},
                       {icon:"⬇",title:"Export Report",desc:"Downloads a polished Excel report with rewards breakdown, beautifully formatted by branch."},
                     ].map(item => (
                       <div className="how-card" key={item.title}>
@@ -1045,6 +1837,14 @@ export default function App() {
                     — if no date column, the <strong>sheet name</strong> is used automatically.
                   </div>
                 </div>
+              )}
+              {manualMode && (
+                <ManualEntryModal
+                  onClose={() => setManualMode(false)}
+                  onSubmit={handleManualSubmit}
+                  modalState={manualModalState}
+                  setModalState={setManualModalState}
+                />
               )}
             </main>
           </div>
