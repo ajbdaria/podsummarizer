@@ -46,21 +46,22 @@ const G = css`
     --radius-xs:6px;
   }
 
-  body, #root {
-    min-height: 100vh; width: 100%;
+  html, body, #root {
+    height: 100%; width: 100%;
     background: var(--bg);
     color: var(--text);
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    overflow: hidden;
   }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
 
-  .app { min-height: 100vh; display: flex; flex-direction: column; }
+  .app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
   /* ── HEADER ── */
   .header {
@@ -142,7 +143,7 @@ const G = css`
   .hist-delete:hover { color: var(--red); background: var(--red-lt); }
 
   /* ── MAIN CONTENT ── */
-  .content-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
+  .content-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 
   /* ── TAB BAR ── */
   .tab-bar {
@@ -180,7 +181,7 @@ const G = css`
     display: flex; flex-direction: column;
     overflow: hidden;
   }
-  .input-panel-inner { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 14px; gap: 10px; }
+  .input-panel-inner { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 0; }
   .panel-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; min-height: 0; padding-right: 2px; }
   .panel-footer { flex-shrink: 0; display: flex; flex-direction: column; gap: 7px; padding-top: 10px; border-top: 1px solid var(--border); }
   .results-area { flex: 1; overflow-y: auto; padding: 24px 28px; min-width: 0; }
@@ -590,7 +591,7 @@ function ManualEntryPanel({ onSubmit, state, setState }) {
   const branchKeys = Object.keys(branches);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", gap: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden", padding: "14px", gap: 0 }}>
 
       {/* ── TOP: fixed inputs (label, date, branches) ── */}
       <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
@@ -1008,7 +1009,7 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory, isManual }) {
 }
 
 /* ── APP ── */
-export default function App() {
+function App() {
   const [activeTab, setActiveTab] = useState("upload"); // "upload" | "manual"
   const [drag, setDrag] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -1213,7 +1214,7 @@ export default function App() {
                 <div className={`input-panel${hasResults ? "" : " full-width"}`}>
                   <div className="input-panel-inner">
                     {activeTab === "upload" && (
-                      <>
+                      <div style={{ flex: 1, overflowY: "auto", padding: "14px", display: "flex", flexDirection: "column", gap: 12 }}>
                         {/* COMPACT dropzone when results already shown */}
                         {hasResults ? (
                           <>
@@ -1295,7 +1296,7 @@ export default function App() {
                             </div>
                           </div>
                         )}
-                      </>
+                      </div>
                     )}
 
                     {activeTab === "manual" && (
@@ -1338,6 +1339,194 @@ export default function App() {
           </div>
         </div>
       </div>
+    </>
+  );
+}
+
+/* ── SPLASH SCREEN ── */
+const splashCSS = css`
+  @keyframes sp-fade-in  { from{opacity:0;transform:scale(.94)} to{opacity:1;transform:scale(1)} }
+  @keyframes sp-fade-out { from{opacity:1;transform:scale(1)}   to{opacity:0;transform:scale(1.04)} }
+  @keyframes sp-ring-rot { from{transform:rotate(-90deg)} to{transform:rotate(270deg)} }
+  @keyframes sp-ring-draw{ from{stroke-dashoffset:240} to{stroke-dashoffset:30} }
+  @keyframes sp-bar      { from{width:0%} to{width:100%} }
+  @keyframes sp-dot-pop  { 0%,80%,100%{transform:scale(0);opacity:0} 40%{transform:scale(1);opacity:1} }
+  @keyframes sp-txt-up   { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes sp-glow-pulse{ 0%,100%{box-shadow:0 0 28px rgba(37,99,235,.35),0 0 0 0 rgba(37,99,235,.0)} 50%{box-shadow:0 0 56px rgba(37,99,235,.6),0 0 80px rgba(67,56,202,.18)} }
+  @keyframes sp-particles { 0%{opacity:0;transform:translate(0,0) scale(0)} 30%{opacity:1} 100%{opacity:0;transform:translate(var(--px),var(--py)) scale(1)} }
+
+  .sp-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: linear-gradient(145deg, #060C18 0%, #0D1B2A 55%, #091422 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    animation: sp-fade-in .35s ease both;
+    overflow: hidden;
+  }
+  .sp-overlay.sp-exit { animation: sp-fade-out .45s ease forwards; pointer-events: none; }
+
+  /* subtle grid pattern */
+  .sp-overlay::before {
+    content: ''; position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(37,99,235,.04) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(37,99,235,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black, transparent);
+  }
+
+  .sp-logo-wrap {
+    position: relative; margin-bottom: 30px;
+    animation: sp-glow-pulse 2s ease-in-out infinite;
+    border-radius: 22px; flex-shrink: 0;
+  }
+  .sp-logo-box {
+    width: 76px; height: 76px;
+    background: linear-gradient(135deg, #1D4ED8 0%, #4338CA 100%);
+    border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; z-index: 1;
+  }
+  .sp-logo-box svg { width: 36px; height: 36px; color: #fff; }
+
+  .sp-ring {
+    position: absolute; top: -11px; left: -11px;
+    width: 98px; height: 98px;
+    animation: sp-ring-rot 2s linear infinite;
+    z-index: 0; pointer-events: none;
+  }
+  .sp-ring circle {
+    fill: none; stroke: url(#spg); stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 240;
+    animation: sp-ring-draw 2s ease-in-out infinite;
+  }
+
+  .sp-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 24px; font-weight: 800; color: #fff;
+    letter-spacing: -.05em; margin-bottom: 6px;
+    animation: sp-txt-up .5s .15s ease both;
+  }
+  .sp-title em { font-style: normal; color: #60A5FA; }
+
+  .sp-subtitle {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10.5px; font-weight: 600;
+    color: rgba(255,255,255,.35);
+    letter-spacing: .18em; text-transform: uppercase;
+    margin-bottom: 38px;
+    animation: sp-txt-up .5s .28s ease both;
+  }
+
+  .sp-bar-track {
+    width: 210px; height: 2.5px;
+    background: rgba(255,255,255,.07);
+    border-radius: 99px; overflow: hidden;
+    animation: sp-txt-up .4s .4s ease both; opacity: 0;
+    animation-fill-mode: both;
+  }
+  .sp-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1D4ED8 0%, #818CF8 50%, #1D4ED8 100%);
+    background-size: 300%;
+    border-radius: 99px;
+    animation: sp-bar 1.9s .45s cubic-bezier(.22,1,.36,1) forwards;
+  }
+
+  .sp-dots {
+    display: flex; gap: 7px; margin-top: 22px;
+    animation: sp-txt-up .4s .52s ease both; opacity: 0;
+    animation-fill-mode: both;
+  }
+  .sp-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: rgba(96,165,250,.5);
+  }
+  .sp-dot:nth-child(1) { animation: sp-dot-pop 1.4s .55s ease-in-out infinite; }
+  .sp-dot:nth-child(2) { animation: sp-dot-pop 1.4s .72s ease-in-out infinite; }
+  .sp-dot:nth-child(3) { animation: sp-dot-pop 1.4s .89s ease-in-out infinite; }
+
+  /* floating particle dots */
+  .sp-particle {
+    position: absolute; width: 4px; height: 4px; border-radius: 50%;
+    background: #3B82F6; opacity: 0;
+    animation: sp-particles 2.4s ease-out infinite;
+  }
+`;
+
+function SplashScreen({ onDone }) {
+  const [exiting, setExiting] = useState(false);
+  useState(() => {
+    const t1 = setTimeout(() => setExiting(true), 2300);
+    const t2 = setTimeout(() => onDone(), 2750);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  });
+
+  const particles = [
+    { style: { left: "48%", top: "38%", "--px": "-60px", "--py": "-80px", animationDelay: ".2s" } },
+    { style: { left: "52%", top: "38%", "--px": "55px",  "--py": "-75px", animationDelay: ".7s" } },
+    { style: { left: "50%", top: "40%", "--px": "-40px", "--py": "90px",  animationDelay: "1.1s" } },
+    { style: { left: "49%", top: "39%", "--px": "70px",  "--py": "65px",  animationDelay: "1.6s" } },
+    { style: { left: "51%", top: "37%", "--px": "-80px", "--py": "30px",  animationDelay: "2s"   } },
+  ];
+
+  return (
+    <>
+      <style>{splashCSS}</style>
+      <div className={`sp-overlay${exiting ? " sp-exit" : ""}`}>
+        {/* SVG gradient defs */}
+        <svg width="0" height="0" style={{ position: "absolute" }}>
+          <defs>
+            <linearGradient id="spg" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stopColor="#2563EB" stopOpacity="0" />
+              <stop offset="40%"  stopColor="#60A5FA" stopOpacity="1" />
+              <stop offset="100%" stopColor="#818CF8" stopOpacity="1" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        {/* Floating particles */}
+        {particles.map((p, i) => (
+          <div key={i} className="sp-particle" style={p.style} />
+        ))}
+
+        {/* Logo + ring */}
+        <div className="sp-logo-wrap">
+          <svg className="sp-ring" viewBox="0 0 98 98">
+            <circle cx="49" cy="49" r="45" />
+          </svg>
+          <div className="sp-logo-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <polyline points="3.29 7 12 12 20.71 7"/>
+              <line x1="12" y1="22" x2="12" y2="12"/>
+            </svg>
+          </div>
+        </div>
+
+        <div className="sp-title">POD Rate <em>Tracker</em></div>
+        <div className="sp-subtitle">Logistics Intelligence</div>
+
+        <div className="sp-bar-track">
+          <div className="sp-bar-fill" />
+        </div>
+
+        <div className="sp-dots">
+          <div className="sp-dot" />
+          <div className="sp-dot" />
+          <div className="sp-dot" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ── ROOT WRAPPER WITH SPLASH ── */
+export default function AppWithSplash() {
+  const [ready, setReady] = useState(false);
+  return (
+    <>
+      {!ready && <SplashScreen onDone={() => setReady(true)} />}
+      {ready && <App />}
     </>
   );
 }
