@@ -44,6 +44,7 @@ const G = css`
     --radius:   14px;
     --radius-sm:9px;
     --radius-xs:6px;
+    --sidebar-w: 260px;
   }
 
   html, body, #root {
@@ -110,20 +111,55 @@ const G = css`
 
   /* ── SIDEBAR ── */
   .sidebar {
-    width: 280px; flex-shrink: 0;
+    width: var(--sidebar-w);
+    flex-shrink: 0;
     background: var(--surface);
     border-right: 1px solid var(--border);
-    display: flex; flex-direction: column;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
+    transition: width .28s cubic-bezier(.4,0,.2,1), box-shadow .28s;
+    position: relative;
   }
+  .sidebar.collapsed {
+    width: 44px;
+    box-shadow: 2px 0 8px rgba(13,27,42,.06);
+  }
+
+  /* collapsed strip content */
+  .sidebar-collapsed-strip {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 0; gap: 10px;
+    width: 44px; flex-shrink: 0;
+  }
+  .sidebar-toggle {
+    width: 32px; height: 32px;
+    background: var(--blue); border: none;
+    border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; transition: all .15s; flex-shrink: 0;
+    font-size: 14px; font-weight: 900; line-height: 1;
+    box-shadow: 0 2px 8px rgba(37,99,235,.35);
+    font-family: monospace;
+  }
+  .sidebar-toggle:hover { background: var(--indigo); box-shadow: 0 4px 14px rgba(37,99,235,.45); transform: scale(1.08); }
+  .sidebar-toggle svg { width: 15px; height: 15px; }
+
   .sidebar-head {
-    padding: 14px 16px 10px;
+    padding: 10px 12px 10px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
+    gap: 6px;
+    flex-shrink: 0;
   }
-  .sidebar-title { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text3); display: flex; align-items: center; gap: 6px; }
-  .hist-count { background: var(--blue); color: #fff; border-radius: 99px; padding: 1px 7px; font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace; }
-  .clear-btn { font-size: 10px; color: var(--text3); background: none; border: none; cursor: pointer; padding: 3px 7px; border-radius: 4px; transition: all .15s; font-family: 'DM Sans', sans-serif; font-weight: 600; }
+  .sidebar-title {
+    font-size: 10px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--text3);
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .hist-count { background: var(--blue); color: #fff; border-radius: 99px; padding: 1px 7px; font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace; flex-shrink: 0; }
+  .clear-btn { font-size: 10px; color: var(--text3); background: none; border: none; cursor: pointer; padding: 3px 7px; border-radius: 4px; transition: all .15s; font-family: 'DM Sans', sans-serif; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
   .clear-btn:hover { color: var(--red); background: var(--red-lt); }
   .sidebar-list { flex: 1; overflow-y: auto; padding: 8px; }
   .sidebar-empty { padding: 28px 14px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.7; }
@@ -141,6 +177,24 @@ const G = css`
   .hist-delete { position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; background: none; border: none; cursor: pointer; color: var(--text3); border-radius: 3px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: all .15s; font-size: 11px; }
   .hist-item:hover .hist-delete { opacity: 1; }
   .hist-delete:hover { color: var(--red); background: var(--red-lt); }
+
+  /* collapsed vertical history badge */
+  .sidebar-collapsed-badge {
+    writing-mode: vertical-rl; text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: 9px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--text3);
+    padding: 8px 0; user-select: none;
+    white-space: nowrap;
+  }
+  .sidebar-hist-dot {
+    width: 22px; height: 22px;
+    background: var(--blue); color: #fff;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 800;
+    flex-shrink: 0;
+  }
 
   /* ── MAIN CONTENT ── */
   .content-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
@@ -191,7 +245,6 @@ const G = css`
   /* ── UPLOAD ZONE ── */
   .upload-label { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; display: block; }
 
-  /* Full/large dropzone — when no results */
   .dropzone {
     background: var(--bg); border: 2px dashed var(--border2);
     border-radius: var(--radius); padding: 32px 20px; text-align: center;
@@ -206,7 +259,6 @@ const G = css`
   .dz-sub { font-size: 11px; color: var(--text3); }
   .file-badge { display: inline-flex; align-items: center; gap: 5px; background: var(--green-lt); color: var(--green); border: 1px solid #A7F3D0; border-radius: 99px; padding: 4px 12px; font-size: 11px; font-weight: 700; margin-top: 10px; }
 
-  /* Compact dropzone — when results are shown on the right */
   .dropzone-compact {
     background: var(--bg); border: 2px dashed var(--border2);
     border-radius: var(--radius-sm); padding: 12px 14px;
@@ -254,7 +306,6 @@ const G = css`
   .btn-add-branch { padding: 8px 14px; background: var(--blue); color: #fff; border: none; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 16px; line-height: 1; cursor: pointer; transition: background .15s; }
   .btn-add-branch:hover { background: #1D4ED8; }
 
-  /* Rider list in manual panel */
   .rider-rows { display: flex; flex-direction: column; gap: 4px; }
   .rider-row-item {
     display: flex; align-items: center; gap: 8px;
@@ -272,7 +323,6 @@ const G = css`
   .rider-del-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 12px; padding: 2px 5px; border-radius: 3px; transition: all .12s; }
   .rider-del-btn:hover { color: var(--red); background: var(--red-lt); }
 
-  /* Hit type chooser — inline card below selected rider */
   .hit-chooser {
     background: var(--bg); border: 1.5px solid var(--blue-mid);
     border-radius: var(--radius); padding: 14px;
@@ -307,7 +357,6 @@ const G = css`
   .hit-type-btn.solo .hti-badge { background: var(--blue); color: #fff; }
   .hit-type-btn.hot .hti-badge { background: var(--amber); color: #fff; }
 
-  /* Hot count step */
   .hot-count-box { display: flex; flex-direction: column; gap: 8px; }
   .hot-count-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
   .count-btn { width: 34px; height: 34px; border: 1.5px solid var(--border2); border-radius: 7px; background: var(--surface); cursor: pointer; font-size: 18px; font-weight: 700; color: var(--text2); display: flex; align-items: center; justify-content: center; transition: all .12s; }
@@ -323,11 +372,9 @@ const G = css`
 
   .day-label-row { display: flex; flex-direction: column; gap: 4px; }
 
-  /* New rider form */
   .new-rider-form { background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 8px; animation: slideDown .18s ease; }
   .new-rider-form-header { font-size: 11px; font-weight: 700; color: var(--text2); display: flex; align-items: center; justify-content: space-between; }
 
-  /* Totals bar in manual panel */
   .panel-totals-bar { background: linear-gradient(135deg, #064E3B 0%, #047857 100%); border-radius: var(--radius-sm); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
   .panel-totals-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.75); }
   .panel-totals-amount { font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 800; color: #fff; }
@@ -432,7 +479,7 @@ const G = css`
   .col-detect { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 18px; font-size: 11px; color: var(--text2); line-height: 2; }
   .col-kw { display: inline-block; background: var(--surface); border: 1px solid var(--border2); border-radius: 3px; padding: 0 5px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text); font-weight: 600; margin: 1px 2px; }
 
-  /* ── MANUAL RESULTS TABLE (matches sample image) ── */
+  /* ── MANUAL RESULTS TABLE ── */
   .manual-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 20px; }
   .manual-table-banner { background: #1B3A6B; color: #fff; padding: 11px 18px; font-weight: 800; font-size: 13px; letter-spacing: .03em; text-align: center; }
 
@@ -494,7 +541,6 @@ const IconBranch=()=>(<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 const IconRiders=()=>(<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
 const IconTrophy=()=>(<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 2 8 8 12 11 16 8 16 2"/><path d="M8 2H4v6c0 3.31 2.69 6 6 6h0v4"/><path d="M16 2h4v6c0 3.31-2.69 6-6 6h0v4"/><rect x="8" y="20" width="8" height="2" rx="1"/></svg>);
 const IconPeso=()=>(<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="10" x2="13" y2="10"/><line x1="3" y1="14" x2="13" y2="14"/><path d="M7 20V4h5a5 5 0 0 1 0 10H7"/></svg>);
-const IconEdit=()=>(<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>);
 
 const HISTORY_KEY = "pod-tracker-history";
 const MAX_HISTORY = 30;
@@ -593,9 +639,7 @@ function ManualEntryPanel({ onSubmit, state, setState }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden", padding: "14px", gap: 0 }}>
 
-      {/* ── TOP: fixed inputs (label, date, branches) ── */}
       <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
-        {/* Label + Date */}
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 2 }}>
             <label className="field-label">Summary Label *</label>
@@ -607,7 +651,6 @@ function ManualEntryPanel({ onSubmit, state, setState }) {
           </div>
         </div>
 
-        {/* Branches */}
         <div>
           <label className="field-label" style={{ marginBottom: 5 }}>Branches ({branchKeys.length})</label>
           <div className="add-branch-row" style={{ marginBottom: branchKeys.length > 0 ? 7 : 0 }}>
@@ -627,10 +670,8 @@ function ManualEntryPanel({ onSubmit, state, setState }) {
         </div>
       </div>
 
-      {/* ── MIDDLE: riders area — flex 1, scrollable ── */}
       {activeBranch ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0, paddingTop: 10 }}>
-          {/* Branch header + ADD button always at top */}
           <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
             <div style={{ fontWeight: 700, fontSize: 12, color: "var(--text)", display: "flex", alignItems: "center", gap: 5, minWidth: 0, overflow: "hidden" }}>
               <span style={{ fontSize: 14 }}>🏢</span>
@@ -655,7 +696,6 @@ function ManualEntryPanel({ onSubmit, state, setState }) {
             )}
           </div>
 
-          {/* New rider form — pinned below header, above list */}
           {hitStep !== "idle" && !isRiderSelected && (
             <div className="new-rider-form" style={{ flexShrink: 0, marginBottom: 8 }}>
               <div className="new-rider-form-header">
@@ -703,7 +743,6 @@ function ManualEntryPanel({ onSubmit, state, setState }) {
             </div>
           )}
 
-          {/* Scrollable rider list */}
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4, minHeight: 0 }}>
             {activeBranchRiders.length === 0 && hitStep === "idle" && (
               <div style={{ padding: "20px 12px", textAlign: "center", color: "var(--text3)", fontSize: 11.5, background: "var(--bg)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border2)" }}>
@@ -738,7 +777,6 @@ function ManualEntryPanel({ onSubmit, state, setState }) {
                       })}
                     </div>
                   )}
-                  {/* Inline hit chooser for already-added rider */}
                   {isSel && (
                     <div className="hit-chooser" style={{ marginLeft: 8, marginTop: 4, marginBottom: 4 }}>
                       <div className="hit-chooser-header">
@@ -795,7 +833,6 @@ function ManualEntryPanel({ onSubmit, state, setState }) {
         </div>
       )}
 
-      {/* ── BOTTOM: always-visible footer ── */}
       <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 7 }}>
         {allRiders.length > 0 && (
           <div className="panel-totals-bar">
@@ -1010,7 +1047,7 @@ function ResultsPanel({ branches, fileName, uploadedAt, isHistory, isManual }) {
 
 /* ── APP ── */
 function App() {
-  const [activeTab, setActiveTab] = useState("upload"); // "upload" | "manual"
+  const [activeTab, setActiveTab] = useState("upload");
   const [drag, setDrag] = useState(false);
   const [fileName, setFileName] = useState("");
   const [branches, setBranches] = useState(null);
@@ -1024,6 +1061,7 @@ function App() {
   const [historyView, setHistoryView] = useState(null);
   const [storageReady, setStorageReady] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [manualState, setManualState] = useState({
     label: "", reportDate: new Date().toISOString().split("T")[0],
     branches: {}, activeBranch: null, newBranch: "",
@@ -1140,49 +1178,75 @@ function App() {
         </header>
 
         <div className="layout">
-          {/* SIDEBAR — history */}
-          <aside className="sidebar">
-            <div className="sidebar-head">
-              <div className="sidebar-title">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                History
-                {history.length > 0 && <span className="hist-count">{history.length}</span>}
+          {/* SIDEBAR — collapsible history */}
+          <aside className={`sidebar${sidebarCollapsed ? " collapsed" : ""}`}>
+            {sidebarCollapsed ? (
+              /* ── COLLAPSED STATE: thin strip with toggle + vertical label + count ── */
+              <div className="sidebar-collapsed-strip">
+                <button
+                  className="sidebar-toggle"
+                  onClick={() => setSidebarCollapsed(false)}
+                  title="Show history"
+                >››</button>
+                {history.length > 0 && (
+                  <div className="sidebar-hist-dot" title={`${history.length} records`}>{history.length}</div>
+                )}
+                <div className="sidebar-collapsed-badge">History</div>
               </div>
-              {history.length > 0 && <button className="clear-btn" onClick={clearAllHistory}>Clear all</button>}
-            </div>
-            <div className="sidebar-list">
-              {!storageReady && <div className="sidebar-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Loading…</div>}
-              {storageReady && history.length === 0 && (
-                <div className="sidebar-empty">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  No records yet.<br />Upload a file or create a manual entry.
-                </div>
-              )}
-              {storageReady && history.map(entry => {
-                const riders = Object.values(entry.branches).flat();
-                const hits = riders.reduce((s, r) => s + r.dates.length, 0);
-                const { grandTotal: _gt } = computeRewards(entry.branches);
-                const grandTotal = entry.isManual ? Object.values(entry.branches).flat().reduce((s, r) => s + (r._manualReward ?? 0), 0) : _gt;
-                const isActive = historyView?.id === entry.id;
-                const isDeleting = deletingId === entry.id;
-                const d = new Date(entry.uploadedAt);
-                return (
-                  <div key={entry.id} className={`hist-item${isActive ? " active" : ""}${isDeleting ? " deleting" : ""}`} onClick={() => setHistoryView(isActive ? null : entry)}>
-                    <div className="hist-item-name">{entry.fileName.startsWith("Manual") ? "✍️" : "📄"} {entry.fileName}</div>
-                    <div className="hist-item-meta">
-                      <span>🏢 {Object.keys(entry.branches).length}</span>
-                      <span>👤 {riders.length}</span>
-                      <span>🏆 {hits}</span>
-                      <span>💰 ₱{grandTotal.toLocaleString("en", { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="hist-item-meta" style={{ marginTop: 2 }}>
-                      <span style={{ opacity: .65 }}>{d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
-                    </div>
-                    <button className="hist-delete" title="Remove" onClick={ev => { ev.stopPropagation(); deleteEntry(entry.id); }}>✕</button>
+            ) : (
+              /* ── EXPANDED STATE: full sidebar ── */
+              <>
+                <div className="sidebar-head">
+                  <div className="sidebar-title">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    History
+                    {history.length > 0 && <span className="hist-count">{history.length}</span>}
                   </div>
-                );
-              })}
-            </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {history.length > 0 && <button className="clear-btn" onClick={clearAllHistory}>Clear</button>}
+                    {/* collapse toggle */}
+                    <button
+                      className="sidebar-toggle"
+                      onClick={() => setSidebarCollapsed(true)}
+                      title="Hide history"
+                    >‹‹</button>
+                  </div>
+                </div>
+                <div className="sidebar-list">
+                  {!storageReady && <div className="sidebar-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Loading…</div>}
+                  {storageReady && history.length === 0 && (
+                    <div className="sidebar-empty">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      No records yet.<br />Upload a file or create a manual entry.
+                    </div>
+                  )}
+                  {storageReady && history.map(entry => {
+                    const riders = Object.values(entry.branches).flat();
+                    const hits = riders.reduce((s, r) => s + r.dates.length, 0);
+                    const { grandTotal: _gt } = computeRewards(entry.branches);
+                    const grandTotal = entry.isManual ? Object.values(entry.branches).flat().reduce((s, r) => s + (r._manualReward ?? 0), 0) : _gt;
+                    const isActive = historyView?.id === entry.id;
+                    const isDeleting = deletingId === entry.id;
+                    const d = new Date(entry.uploadedAt);
+                    return (
+                      <div key={entry.id} className={`hist-item${isActive ? " active" : ""}${isDeleting ? " deleting" : ""}`} onClick={() => setHistoryView(isActive ? null : entry)}>
+                        <div className="hist-item-name">{entry.fileName.startsWith("Manual") ? "✍️" : "📄"} {entry.fileName}</div>
+                        <div className="hist-item-meta">
+                          <span>🏢 {Object.keys(entry.branches).length}</span>
+                          <span>👤 {riders.length}</span>
+                          <span>🏆 {hits}</span>
+                          <span>💰 ₱{grandTotal.toLocaleString("en", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="hist-item-meta" style={{ marginTop: 2 }}>
+                          <span style={{ opacity: .65 }}>{d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
+                        </div>
+                        <button className="hist-delete" title="Remove" onClick={ev => { ev.stopPropagation(); deleteEntry(entry.id); }}>✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </aside>
 
           {/* MAIN CONTENT AREA */}
@@ -1209,13 +1273,12 @@ function App() {
             )}
 
             <div className="workspace">
-              {/* INPUT PANEL — left side when results are showing, full width otherwise */}
+              {/* INPUT PANEL */}
               {!historyView && (
                 <div className={`input-panel${hasResults ? "" : " full-width"}`}>
                   <div className="input-panel-inner">
                     {activeTab === "upload" && (
                       <div style={{ flex: 1, overflowY: "auto", padding: "14px", display: "flex", flexDirection: "column", gap: 12 }}>
-                        {/* COMPACT dropzone when results already shown */}
                         {hasResults ? (
                           <>
                             <span className="upload-label">Upload Another File</span>
@@ -1242,7 +1305,6 @@ function App() {
                             </div>
                           </>
                         ) : (
-                          /* FULL dropzone when no results yet */
                           <>
                             <span className="upload-label">Data Source</span>
                             <div
@@ -1364,7 +1426,6 @@ const splashCSS = css`
   }
   .sp-overlay.sp-exit { animation: sp-fade-out .45s ease forwards; pointer-events: none; }
 
-  /* subtle grid pattern */
   .sp-overlay::before {
     content: ''; position: absolute; inset: 0;
     background-image: linear-gradient(rgba(37,99,235,.04) 1px, transparent 1px),
@@ -1445,7 +1506,6 @@ const splashCSS = css`
   .sp-dot:nth-child(2) { animation: sp-dot-pop 1.4s .72s ease-in-out infinite; }
   .sp-dot:nth-child(3) { animation: sp-dot-pop 1.4s .89s ease-in-out infinite; }
 
-  /* floating particle dots */
   .sp-particle {
     position: absolute; width: 4px; height: 4px; border-radius: 50%;
     background: #3B82F6; opacity: 0;
@@ -1473,7 +1533,6 @@ function SplashScreen({ onDone }) {
     <>
       <style>{splashCSS}</style>
       <div className={`sp-overlay${exiting ? " sp-exit" : ""}`}>
-        {/* SVG gradient defs */}
         <svg width="0" height="0" style={{ position: "absolute" }}>
           <defs>
             <linearGradient id="spg" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1484,12 +1543,10 @@ function SplashScreen({ onDone }) {
           </defs>
         </svg>
 
-        {/* Floating particles */}
         {particles.map((p, i) => (
           <div key={i} className="sp-particle" style={p.style} />
         ))}
 
-        {/* Logo + ring */}
         <div className="sp-logo-wrap">
           <svg className="sp-ring" viewBox="0 0 98 98">
             <circle cx="49" cy="49" r="45" />
@@ -1520,7 +1577,6 @@ function SplashScreen({ onDone }) {
   );
 }
 
-/* ── ROOT WRAPPER WITH SPLASH ── */
 export default function AppWithSplash() {
   const [ready, setReady] = useState(false);
   return (
@@ -1529,4 +1585,4 @@ export default function AppWithSplash() {
       {ready && <App />}
     </>
   );
-}
+} 
